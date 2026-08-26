@@ -169,7 +169,7 @@ class YotoClient:
         self,
         client_id: Optional[str] = None,
         session: Optional[aiohttp.ClientSession] = None,
-        refresh_hook: Optional[Callable[[str], None]] = None,
+        refresh_hook: Optional[Callable[[Token], None]] = None,
     ) -> None:
         self._owns_session = session is None
         self._session = session or aiohttp.ClientSession()
@@ -237,8 +237,8 @@ class YotoClient:
         ):
             _LOGGER.debug("%s - access token expired or near, refreshing", DOMAIN)
             self.token = await self._auth.refresh(self.token)
-            if self._refresh_hook and self.token.refresh_token:
-                self._refresh_hook(self.token.refresh_token)
+            if self._refresh_hook:
+                self._refresh_hook(self.token)
         return self.token
 
     # ─── Inventory ────────────────────────────────────────────────
