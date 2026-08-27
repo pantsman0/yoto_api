@@ -11,7 +11,6 @@ MQTT background task are torn down cleanly:
         await client.connect_events([device_id], on_update=cb)
 """
 
-from yoto_api.models import player
 import asyncio
 import datetime
 import logging
