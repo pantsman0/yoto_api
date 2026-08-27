@@ -216,6 +216,11 @@ class YotoClient:
 
     async def device_code_flow_complete(self, auth_result: dict) -> Token:
         self.token = await self._auth.poll_for_token(auth_result)
+        if self._refresh_hook is not None:
+            try:
+                await _maybe_await(self._refresh_hook(self.token))
+            except Exception:
+                _LOGGER.exception("%s - refresh hook callback raised", DOMAIN)
         return self.token
 
     async def check_and_refresh_token(self) -> Token:
