@@ -11,6 +11,7 @@ MQTT background task are torn down cleanly:
         await client.connect_events([device_id], on_update=cb)
 """
 
+from yoto_api.models import player
 import asyncio
 import datetime
 import logging
@@ -40,6 +41,7 @@ from .rest.requests import encode_alarms_payload
 _LOGGER = logging.getLogger(__name__)
 
 UpdateCallback = Callable[[YotoPlayer], Union[None, Awaitable[None]]]
+RefreshTokenCallback = Callable[[Token], Union[None, Awaitable[None]]]
 DisconnectCallback = Callable[[Optional[Exception]], Union[None, Awaitable[None]]]
 
 
@@ -169,7 +171,7 @@ class YotoClient:
         self,
         client_id: Optional[str] = None,
         session: Optional[aiohttp.ClientSession] = None,
-        refresh_hook: Optional[Callable[[Token], None]] = None,
+        refresh_hook: Optional[RefreshTokenCallback] = None,
     ) -> None:
         self._owns_session = session is None
         self._session = session or aiohttp.ClientSession()
@@ -237,8 +239,11 @@ class YotoClient:
         ):
             _LOGGER.debug("%s - access token expired or near, refreshing", DOMAIN)
             self.token = await self._auth.refresh(self.token)
-            if self._refresh_hook:
-                self._refresh_hook(self.token)
+            if self._refresh_hook is not None:
+                try:
+                    await _maybe_await(self._refresh_hook(self.token))
+                except Exception:
+                    _LOGGER.exception("%s - refresh hook callback raised", DOMAIN)
         return self.token
 
     # ─── Inventory ────────────────────────────────────────────────
