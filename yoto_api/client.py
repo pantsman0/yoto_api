@@ -217,8 +217,9 @@ class YotoClient:
         return await self._auth.device_code_flow_start()
 
     async def device_code_flow_complete(self, auth_result: dict) -> Token:
+        new_token = await self._auth.poll_for_token(auth_result)
         async with self._token_lock:
-            self.token = await self._auth.poll_for_token(auth_result)
+            self.token = new_token
             if self._refresh_hook is not None:
                 try:
                     await _maybe_await(self._refresh_hook(self.token))
