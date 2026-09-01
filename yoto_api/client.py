@@ -209,9 +209,8 @@ class YotoClient:
 
     # ─── Auth ─────────────────────────────────────────────────────
 
-    async def set_refresh_token(self, refresh_token: str) -> None:
-        async with self._token_lock:
-            self.token = Token(refresh_token=refresh_token)
+    def set_refresh_token(self, refresh_token: str) -> None:
+        self.token = Token(refresh_token=refresh_token)
 
     async def device_code_flow_start(self) -> dict:
         return await self._auth.device_code_flow_start()
@@ -220,12 +219,12 @@ class YotoClient:
         new_token = await self._auth.poll_for_token(auth_result)
         async with self._token_lock:
             self.token = new_token
-            if self._refresh_hook is not None:
-                try:
-                    await _maybe_await(self._refresh_hook(self.token))
-                except Exception:
-                    _LOGGER.exception("%s - refresh hook callback raised", DOMAIN)
-            return self.token
+        if self._refresh_hook is not None:
+            try:
+                await _maybe_await(self._refresh_hook(self.token))
+            except Exception:
+                _LOGGER.exception("%s - refresh hook callback raised", DOMAIN)
+        return self.token
 
     async def check_and_refresh_token(self) -> Token:
         """Refresh the access token if it's expired or about to expire.
@@ -233,6 +232,7 @@ class YotoClient:
         Without a `client_id` the caller owns the OAuth lifecycle (e.g.
         HA's OAuth2Session) and syncs a token in; trust it, don't refresh.
         """
+        refreshed = False
         async with self._token_lock:
             if self.token is None:
                 raise YotoError("No token available; authenticate first")
@@ -248,12 +248,15 @@ class YotoClient:
             ):
                 _LOGGER.debug("%s - access token expired or near, refreshing", DOMAIN)
                 self.token = await self._auth.refresh(self.token)
-                if self._refresh_hook is not None:
-                    try:
-                        await _maybe_await(self._refresh_hook(self.token))
-                    except Exception:
-                        _LOGGER.exception("%s - refresh hook callback raised", DOMAIN)
-            return self.token
+                refreshed = True
+
+        if refreshed and self._refresh_hook is not None:
+            try:
+                await _maybe_await(self._refresh_hook(self.token))
+            except Exception:
+                _LOGGER.exception("%s - refresh hook callback raised", DOMAIN)
+
+        return self.token
 
     # ─── Inventory ────────────────────────────────────────────────
 
