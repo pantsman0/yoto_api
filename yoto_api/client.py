@@ -40,6 +40,7 @@ from .rest.requests import encode_alarms_payload
 _LOGGER = logging.getLogger(__name__)
 
 UpdateCallback = Callable[[YotoPlayer], Union[None, Awaitable[None]]]
+RefreshTokenCallback = Callable[[Token], Union[None, Awaitable[None]]]
 DisconnectCallback = Callable[[Optional[Exception]], Union[None, Awaitable[None]]]
 
 
@@ -169,10 +170,12 @@ class YotoClient:
         self,
         client_id: Optional[str] = None,
         session: Optional[aiohttp.ClientSession] = None,
+        refresh_hook: Optional[RefreshTokenCallback] = None,
     ) -> None:
         self._owns_session = session is None
         self._session = session or aiohttp.ClientSession()
         self._auth = Auth(self._session, client_id=client_id)
+        self._refresh_hook = refresh_hook
         self._rest = RestClient(self._session)
         self._mqtt: Optional[YotoMqttClient] = None
         self._update_callback: Optional[UpdateCallback] = None
@@ -213,6 +216,11 @@ class YotoClient:
 
     async def device_code_flow_complete(self, auth_result: dict) -> Token:
         self.token = await self._auth.poll_for_token(auth_result)
+        if self._refresh_hook is not None:
+            try:
+                await _maybe_await(self._refresh_hook(self.token))
+            except Exception:
+                _LOGGER.exception("%s - refresh hook callback raised", DOMAIN)
         return self.token
 
     async def check_and_refresh_token(self) -> Token:
@@ -235,6 +243,11 @@ class YotoClient:
         ):
             _LOGGER.debug("%s - access token expired or near, refreshing", DOMAIN)
             self.token = await self._auth.refresh(self.token)
+            if self._refresh_hook is not None:
+                try:
+                    await _maybe_await(self._refresh_hook(self.token))
+                except Exception:
+                    _LOGGER.exception("%s - refresh hook callback raised", DOMAIN)
         return self.token
 
     # ─── Inventory ────────────────────────────────────────────────
