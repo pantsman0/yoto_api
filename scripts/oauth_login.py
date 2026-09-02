@@ -13,14 +13,12 @@ This script performs an interactive OAuth 2.0 login with PKCE against Auth0:
 import asyncio
 import base64
 import hashlib
-import logging
 import os
 import secrets
 import sys
 import urllib.parse
 import webbrowser
 from pathlib import Path
-from typing import Optional
 
 import aiohttp
 from aiohttp import web
@@ -53,9 +51,7 @@ def _generate_pkce_pair() -> tuple[str, str]:
     """Generate (code_verifier, code_challenge) for PKCE."""
     # 32 random bytes -> 43 characters base64url string
     verifier_bytes = secrets.token_bytes(32)
-    code_verifier = (
-        base64.urlsafe_b64encode(verifier_bytes).decode("utf-8").rstrip("=")
-    )
+    code_verifier = base64.urlsafe_b64encode(verifier_bytes).decode("utf-8").rstrip("=")
     challenge_bytes = hashlib.sha256(code_verifier.encode("utf-8")).digest()
     code_challenge = (
         base64.urlsafe_b64encode(challenge_bytes).decode("utf-8").rstrip("=")
@@ -94,7 +90,9 @@ async def _start_callback_server(
     async def handle_callback(request: web.Request) -> web.Response:
         params = request.query
         if "error" in params:
-            err_msg = params.get("error_description", params.get("error", "Unknown error"))
+            err_msg = params.get(
+                "error_description", params.get("error", "Unknown error")
+            )
             if not code_future.done():
                 code_future.set_exception(RuntimeError(f"OAuth error: {err_msg}"))
             return web.Response(
@@ -116,7 +114,9 @@ async def _start_callback_server(
         if state != expected_state:
             if not code_future.done():
                 code_future.set_exception(
-                    RuntimeError(f"State mismatch: expected {expected_state}, got {state}")
+                    RuntimeError(
+                        f"State mismatch: expected {expected_state}, got {state}"
+                    )
                 )
             return web.Response(
                 text="<h1>Invalid State</h1><p>State verification failed.</p>",
@@ -186,7 +186,9 @@ async def _exchange_code_for_tokens(
     ) as response:
         body = await response.json(content_type=None)
         if not response.ok:
-            error_desc = body.get("error_description", body.get("error", "Unknown error"))
+            error_desc = body.get(
+                "error_description", body.get("error", "Unknown error")
+            )
             raise RuntimeError(
                 f"Token exchange failed ({response.status}): {error_desc}\nFull response: {body}"
             )
@@ -211,6 +213,7 @@ def _persist_refresh_token(refresh_token: str) -> None:
 
     _ENV_PATH.write_text("\n".join(lines) + "\n")
     console.print(f"[green]✓ Saved YOTO_REFRESH_TOKEN to {_ENV_PATH}[/]")
+
 
 def _persist_access_token(access_token: str) -> None:
     """Save or update YOTO_ACCESS_TOKEN in .env."""
@@ -330,19 +333,23 @@ async def main() -> int:
                 access_token=access_token,
                 refresh_token=refresh_token,
                 scope=scope,
-                valid_until=datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=expires_in)
+                valid_until=datetime.datetime.now(datetime.UTC)
+                + datetime.timedelta(seconds=expires_in),
             )
             await client.update_player_list()
             players = client.players
-            console.print(f"[green]✓ Successfully authenticated! Found {len(players)} player(s):[/]")
+            console.print(
+                f"[green]✓ Successfully authenticated! Found {len(players)} player(s):[/]"
+            )
             for p in players.values():
                 status = "[green]online[/]" if p.is_online else "[red]offline[/]"
-                console.print(f"  • [bold]{p.device.name}[/] ({p.device.device_id}) - {status}")
+                console.print(
+                    f"  • [bold]{p.device.name}[/] ({p.device.device_id}) - {status}"
+                )
             client._auth.refresh()
 
         console.print("\n[bold green]✓ Login flow completed successfully![/]")
         return 0
-
 
     except Exception as err:
         console.print(f"\n[red]✗ Error during login flow: {err}[/]")
